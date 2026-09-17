@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+.ipynb_checkpoints/
+outputs/
+data/weather_cache/

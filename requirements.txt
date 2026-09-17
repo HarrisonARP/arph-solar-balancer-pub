@@ -1,0 +1,6 @@
+CoolProp>=7.0
+dash>=2.17
+numpy>=2.0
+pandas>=2.2
+plotly>=5.20
+requests>=2.31

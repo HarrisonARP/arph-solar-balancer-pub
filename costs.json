@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "status": "illustrative_dummy",
+    "warning": "Values are placeholders for software demonstration only and are not suitable for investment decisions.",
+    "currency": "USD",
+    "base_year": 2025,
+    "source": "Unsourced illustrative assumptions; replace with reviewed Sinnott/Turton or project-specific data."
+  },
+  "financial": {
+    "project_life_years": 20,
+    "real_discount_rate": 0.08
+  },
+  "solar": {
+    "capex_usd_per_kw": 900.0,
+    "fixed_opex_fraction_per_year": 0.015
+  },
+  "battery": {
+    "energy_capex_usd_per_kwh": 220.0,
+    "power_capex_usd_per_kw": 150.0,
+    "fixed_opex_fraction_per_year": 0.02
+  },
+  "hydrogen_storage": {
+    "tank_capex_usd_per_kg": 600.0,
+    "extra_electrolyser_capex_usd_per_kw": 1000.0,
+    "fixed_opex_fraction_per_year": 0.03
+  },
+  "co2_storage": {
+    "tank_capex_usd_per_kg": 25.0,
+    "fixed_opex_fraction_per_year": 0.03
+  },
+  "methane_storage": {
+    "tank_capex_usd_per_kg": 100.0,
+    "fixed_opex_fraction_per_year": 0.02,
+    "initial_fill_usd_per_kg": 2.0
+  },
+  "plant_units": {
+    "electrolyser": {"reference_capacity_kw": 1000.0, "reference_installed_cost_usd": 1000000.0, "scaling_exponent": 0.75},
+    "fuel_cell": {"reference_capacity_kw": 1000.0, "reference_installed_cost_usd": 1400000.0, "scaling_exponent": 0.75},
+    "dac_fan_and_contactor": {"reference_capacity_kg_ch4_h": 100.0, "reference_installed_cost_usd": 900000.0, "scaling_exponent": 0.65},
+    "carbonator": {"reference_capacity_kg_ch4_h": 100.0, "reference_installed_cost_usd": 1500000.0, "scaling_exponent": 0.65},
+    "calciner": {"reference_capacity_kg_ch4_h": 100.0, "reference_installed_cost_usd": 2200000.0, "scaling_exponent": 0.65},
+    "co2_compressor": {"reference_capacity_kw": 500.0, "reference_installed_cost_usd": 600000.0, "scaling_exponent": 0.70},
+    "storage_compressor": {"reference_capacity_kw": 500.0, "reference_installed_cost_usd": 600000.0, "scaling_exponent": 0.70},
+    "storage_expander": {"reference_capacity_kw": 500.0, "reference_installed_cost_usd": 500000.0, "scaling_exponent": 0.70},
+    "sabatier_reactor": {"reference_capacity_kg_ch4_h": 100.0, "reference_installed_cost_usd": 900000.0, "scaling_exponent": 0.65},
+    "feed_effluent_heat_exchanger": {"reference_capacity_kw": 100.0, "reference_installed_cost_usd": 300000.0, "scaling_exponent": 0.65}
+  },
+  "plant_opex": {
+    "fixed_fraction_of_plant_capex_per_year": 0.04,
+    "variable_usd_per_kg_ch4": 0.05
+  }
+}
