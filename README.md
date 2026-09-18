@@ -69,7 +69,7 @@ pandas, Plotly and requests. To check the install — no extra packages, no netw
 python -m unittest discover -s tests
 ```
 
-The output should read: 125 tests, 2 skipped. 
+The output should read: 126 tests, 2 skipped. 
 Expect **under ten minutes** on a current machine and **half an hour or so** on an older one — a 2017 dual-core machine took 36 minutes. The two skips are the notebook tests, which need `nbclient` and `nbformat` (not included in requirements.txt).
 
 ### Rebuilding the demo bundles

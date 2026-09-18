@@ -1202,6 +1202,33 @@ class DashSmokeTests(unittest.TestCase):
         self.assertEqual(buffered.perfect.metadata["long_storage"]["capacity_kwh"], 0.0)
         self.assertGreater(floating.perfect.metadata["long_storage"]["capacity_kwh"], 0.0)
 
+    def test_limiting_calendar_draws_one_year_and_survives_a_stale_selection(self):
+        """The year is chosen server-side, so each figure holds exactly one calendar.
+
+        This replaced a Plotly dropdown that toggled trace visibility in the browser
+        and intermittently blanked the graph instead of changing year.
+        """
+        import pandas as pd
+
+        hours = pd.date_range("2020-01-01", periods=24 * 500, freq="h", tz="UTC")
+        simulation = SimpleNamespace(hourly=pd.DataFrame({
+            "methane_kg": 1.0, "methane_target_kg": 1.0, "curtailed_kwh": 0.0,
+            "fault_capacity_fraction": 1.0,
+        }, index=hours))
+
+        years = dashboard.limiting_subsystem_years(simulation)
+        self.assertEqual(years, [2020, 2021])
+
+        for requested, expected in ((None, 2020), (2020, 2020), (2021, 2021),
+                                    (1999, 2020)):  # a selection left over from another case
+            figure = dashboard.build_limiting_subsystem_figure(simulation, year=requested)
+            heatmaps = [trace for trace in figure.data if trace.type == "heatmap"]
+            self.assertEqual(len(heatmaps), 1, requested)
+            self.assertEqual(heatmaps[0].name, str(expected), requested)
+            self.assertTrue(figure.layout.title.text.endswith(str(expected)), requested)
+            # No client-side year switching left to go wrong.
+            self.assertFalse(figure.layout.updatemenus, requested)
+
 
 if __name__ == "__main__":
     unittest.main()

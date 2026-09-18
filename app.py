@@ -1517,50 +1517,55 @@ def empty_limiting_figure(message: str = "Run a case, then load its plots."):
     return figure
 
 
-def build_limiting_subsystem_figure(simulation, title: str = ""):
-    """Calendar of what held production back on each day of the evaluation."""
+def limiting_subsystem_years(simulation) -> list[int]:
+    """Calendar years the limiting-subsystem view can offer, earliest first."""
+    daily = daily_limiting_subsystem(simulation.hourly)
+    return sorted({day.year for day in daily.index})
+
+
+def build_limiting_subsystem_figure(simulation, title: str = "", year=None):
+    """Calendar of what held production back on each day of one evaluation year.
+
+    One year per figure, chosen server-side. An earlier version drew every year and
+    switched between them with a Plotly dropdown that toggled trace visibility in the
+    browser; that intermittently blanked the graph instead of changing year.
+    """
     daily = daily_limiting_subsystem(simulation.hourly)
     if daily.empty:
         return empty_limiting_figure("No dispatch hours to classify.")
     present = [name for name in LIMIT_CATEGORIES if name in set(daily)]
     codes = {name: number for number, name in enumerate(present)}
     years = sorted({day.year for day in daily.index})
+    # A stale selection survives switching case, so fall back rather than draw nothing.
+    selected = int(year) if year is not None and int(year) in years else years[0]
+    grid = np.full((12, 31), np.nan)
+    text = np.full((12, 31), "", dtype=object)
+    for day, name in daily.items():
+        if day.year == selected:
+            grid[day.month - 1, day.day - 1] = codes[name]
+            text[day.month - 1][day.day - 1] = f"{day:%d %b %Y}<br>{name}"
     figure = go.Figure()
-    for row, year in enumerate(years):
-        grid = np.full((12, 31), np.nan)
-        text = np.full((12, 31), "", dtype=object)
-        for day, name in daily.items():
-            if day.year == year:
-                grid[day.month - 1, day.day - 1] = codes[name]
-                text[day.month - 1][day.day - 1] = f"{day:%d %b %Y}<br>{name}"
-        figure.add_trace(go.Heatmap(
-            z=grid, text=text, hovertemplate="%{text}<extra></extra>",
-            x=list(range(1, 32)), y=list(MONTH_NAMES), showscale=False,
-            xgap=1, ygap=1, zmin=-0.5, zmax=max(len(present) - 0.5, 0.5),
-            colorscale=_discrete_colourscale([LIMIT_COLOURS[n] for n in present]),
-            visible=row == 0, name=str(year),
-        ))
-    counts = daily.value_counts()
+    figure.add_trace(go.Heatmap(
+        z=grid, text=text, hovertemplate="%{text}<extra></extra>",
+        x=list(range(1, 32)), y=list(MONTH_NAMES), showscale=False,
+        xgap=1, ygap=1, zmin=-0.5, zmax=max(len(present) - 0.5, 0.5),
+        colorscale=_discrete_colourscale([LIMIT_COLOURS[n] for n in present]),
+        name=str(selected),
+    ))
+    # Day counts describe the year on show, not the whole evaluation period.
+    counts = daily[[day.year == selected for day in daily.index]].value_counts()
     # A legend built from dummy traces, because a heatmap has no per-category entry.
     for name in present:
         figure.add_trace(go.Scatter(
-            x=[None], y=[None], mode="markers", name=f"{name} ({counts[name]} days)",
+            x=[None], y=[None], mode="markers",
+            name=f"{name} ({counts.get(name, 0)} days)",
             marker={"size": 12, "symbol": "square", "color": LIMIT_COLOURS[name],
                     "line": {"color": "#98a6a1", "width": 1}},
         ))
-    if len(years) > 1:
-        figure.update_layout(updatemenus=[{
-            "buttons": [{"label": str(year), "method": "update",
-                         "args": [{"visible": [i == row for i in range(len(years))]
-                                   + [True] * len(present)}]}
-                        for row, year in enumerate(years)],
-            "direction": "down", "showactive": True, "x": 1.0, "xanchor": "right",
-            "y": 1.18, "yanchor": "top",
-        }])
     figure.update_yaxes(autorange="reversed", title_text="")
     figure.update_xaxes(title_text="Day of month", dtick=2)
     figure.update_layout(
-        title=title or "Limiting subsystem by day",
+        title=f"{title or 'Limiting subsystem by day'} — {selected}",
         template="plotly_white", height=380,
         margin={"l": 60, "r": 25, "t": 70, "b": 55},
         legend={"orientation": "h", "yanchor": "top", "y": -0.18,
@@ -3010,6 +3015,10 @@ def create_app() -> Dash:
                     dcc.Graph(id="dispatch-graph", figure=empty_dispatch_figure(),
                               config={"responsive": True, "displaylogo": False},
                               style={"width": "100%", "minHeight": "420px"}),
+                    _control("Limiting subsystem year",
+                             dcc.Dropdown(id="limiting-year", options=[], value=None,
+                                          placeholder="Load a dispatch plot first",
+                                          clearable=False)),
                     dcc.Graph(id="limiting-graph", figure=empty_limiting_figure(),
                               config={"responsive": True, "displaylogo": False},
                               style={"width": "100%"}),
@@ -3986,10 +3995,41 @@ def create_app() -> Dash:
             ))
         return status, cards, False, run_all_disabled, False, optimized_factors or no_update
 
+    def _selected_dispatch(job_data, short_strategy, long_storage,
+                           result_category, completed_case):
+        """Resolve the controls to (simulation, title, label) or (None, None, message).
+
+        Shared by the two plot callbacks so they can never disagree about which case
+        is on screen.
+        """
+        if not job_data or not job_data.get("job_id"):
+            return None, None, "Run a case before loading dispatch plots."
+        job = _job_snapshot(job_data["job_id"])
+        if job is None or job.get("status") != "complete":
+            return None, None, "The calculations have not completed yet."
+        selection = completed_case or _result_key(short_strategy, long_storage)
+        result = job["results"].get(selection)
+        if result is None:
+            return None, None, ("That combination was not calculated. "
+                                "Select an available case or run it first.")
+        perfect_only = job.get("information_mode", "comparison") == "perfect_only"
+        selected_category = "perfect" if perfect_only else result_category
+        simulation, _, information_label = _result_category_parts(result, selected_category)
+        if simulation is None:
+            return None, None, "The selected dispatch result is unavailable."
+        title = (
+            f"Case {result.case_id} — {job['source_metadata']['source']} — "
+            f"{job['evaluation_period']} — "
+            f"{information_label} — "
+            f"{job.get('case_labels', {}).get(selection, short_strategy + ' + ' + long_storage)}"
+        )
+        return simulation, (title, information_label), None
+
     @app.callback(
         Output("dispatch-graph", "figure"),
         Output("reactor-count-graph", "figure"),
-        Output("limiting-graph", "figure"),
+        Output("limiting-year", "options"),
+        Output("limiting-year", "value"),
         Input("load-dispatch", "n_clicks"), Input("run-job", "data"),
         State("short-strategy", "value"), State("long-storage", "value"),
         State("result-category", "value"),
@@ -4000,41 +4040,47 @@ def create_app() -> Dash:
         if ctx.triggered_id == "run-job":
             message = "Calculations are running. Select a completed case and load its plots afterward."
             return (empty_dispatch_figure(message), empty_reactor_count_figure(message),
-                    empty_limiting_figure(message))
-        if not job_data or not job_data.get("job_id"):
-            message = "Run a case before loading dispatch plots."
-            return (empty_dispatch_figure(message), empty_reactor_count_figure(message),
-                    empty_limiting_figure(message))
-        job = _job_snapshot(job_data["job_id"])
-        if job is None or job.get("status") != "complete":
-            message = "The calculations have not completed yet."
-            return (empty_dispatch_figure(message), empty_reactor_count_figure(message),
-                    empty_limiting_figure(message))
-        selection = completed_case or _result_key(short_strategy, long_storage)
-        result = job["results"].get(selection)
-        if result is None:
-            message = "That combination was not calculated. Select an available case or run it first."
-            return (empty_dispatch_figure(message), empty_reactor_count_figure(message),
-                    empty_limiting_figure(message))
-        perfect_only = job.get("information_mode", "comparison") == "perfect_only"
-        selected_category = "perfect" if perfect_only else result_category
-        simulation, _, information_label = _result_category_parts(result, selected_category)
+                    [], None)
+        simulation, labels, message = _selected_dispatch(
+            job_data, short_strategy, long_storage, result_category, completed_case)
         if simulation is None:
-            message = "The selected dispatch result is unavailable."
             return (empty_dispatch_figure(message), empty_reactor_count_figure(message),
-                    empty_limiting_figure(message))
-        title = (
-            f"Case {result.case_id} — {job['source_metadata']['source']} — "
-            f"{job['evaluation_period']} — "
-            f"{information_label} — "
-            f"{job.get('case_labels', {}).get(selection, short_strategy + ' + ' + long_storage)}"
-        )
+                    [], None)
+        title, _information_label = labels
+        years = limiting_subsystem_years(simulation)
         return (
             build_dispatch_figure(simulation, title),
             build_reactor_count_figure(simulation, f"{title} — reactor trains"),
-            build_limiting_subsystem_figure(
-                simulation, f"Limiting subsystem by day — {information_label}"),
+            [{"label": str(year), "value": year} for year in years],
+            years[0] if years else None,
         )
+
+    @app.callback(
+        Output("limiting-graph", "figure"),
+        Input("limiting-year", "value"),
+        Input("load-dispatch", "n_clicks"), Input("run-job", "data"),
+        State("short-strategy", "value"), State("long-storage", "value"),
+        State("result-category", "value"),
+        State("completed-case", "value"),
+        prevent_initial_call=True,
+    )
+    def load_limiting_plot(year, _, job_data, short_strategy, long_storage,
+                           result_category, completed_case=None):
+        """Redraw the limiting-subsystem calendar for one year, server-side.
+
+        Also listens to the load button, because reloading a different case can leave
+        the year unchanged and would otherwise show the previous case's calendar.
+        """
+        if ctx.triggered_id == "run-job":
+            return empty_limiting_figure(
+                "Calculations are running. Select a completed case and load its plots afterward.")
+        simulation, labels, message = _selected_dispatch(
+            job_data, short_strategy, long_storage, result_category, completed_case)
+        if simulation is None:
+            return empty_limiting_figure(message)
+        _title, information_label = labels
+        return build_limiting_subsystem_figure(
+            simulation, f"Limiting subsystem by day — {information_label}", year=year)
 
     @app.callback(
         Output("sizing-content", "children"),
