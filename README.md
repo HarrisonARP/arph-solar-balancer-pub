@@ -49,7 +49,7 @@ Until you have done it once, **Use cached weather** finds nothing and every run 
 API key. Afterwards you can run your own cases on any of the ten sites with no key and
 no downloads — see below.
 
-Annotated example calculations showing the derivation of the plant energy requirements, and energy dispatch models, are included in the Jupyter notebook `sab_notebook.ipynb`. Its first six sections are algebra on a one-kilogram basis and run in seconds; from section 7 it dispatches a weather record hour by hour and takes a minute or two. The notebook deliberately uses one training year and five evaluation years rather than the five and ten behind every shipped result, purely so it runs quickly - the procedure it demonstrates is the same.
+Annotated example calculations showing the derivation of the plant energy requirements, and energy dispatch models, are included in the Jupyter notebook `sab_notebook.ipynb`. Its first six sections are algebra on a one-kilogram basis and run in seconds; from section 7 it dispatches a weather record hour by hour and takes one to two minutes on a current machine, five to ten on an older one. The notebook deliberately uses one training year and five evaluation years rather than the five and ten behind every shipped result, purely so it runs quickly - the procedure it demonstrates is the same.
 
 ---
 
@@ -69,11 +69,14 @@ pandas, Plotly and requests. To check the install — no extra packages, no netw
 python -m unittest discover -s tests
 ```
 
+The output should read: 125 tests, 2 skipped. 
+Expect **under ten minutes** on a current machine and **half an hour or so** on an older one — a 2017 dual-core machine took 36 minutes. The two skips are the notebook tests, which need `nbclient` and `nbformat` (not included in requirements.txt).
+
 ### Rebuilding the demo bundles
 
 `scripts/build_demo.py` regenerates the three files in `data/demo/` from cached weather,
-so every shipped number is reproducible; it takes about half an hour and needs no
-API key.
+so every shipped number is reproducible; it takes about half an hour on a current
+machine, two to three on an older one, and needs no API key.
 
 ### Optional: a Renewables.ninja API key
 
@@ -113,11 +116,12 @@ select one of the other pre-loaded sites, and run that instead. Ticking **Includ
 test cases** under any group of settings runs every option in that group, one at a time,
 which multiplies the runtime accordingly.
 
-A ten-year evaluation takes a minute or two on a fast machine and longer on a slow one:
-the hourly dispatch is a sequential loop that uses **one core**, so single-core speed
-sets the pace and extra cores do not help. Then choose the case in **Completed case**
-and press **Load selected dispatch plot**. For faults, tick **Enable stochastic faults**
-before running and set **Displayed result category** to *Imperfect with faults* after.
+A ten-year evaluation takes a minute or two on a current machine and eight to ten
+minutes on an older one: the hourly dispatch is a sequential loop that uses **one
+core**, so single-core speed sets the pace and extra cores do not help. Then choose
+the case in **Completed case** and press **Load selected dispatch plot**. For faults,
+tick **Enable stochastic faults** before running and set **Displayed result category**
+to *Imperfect with faults* after.
 
 For testing/debugging without use of cached data or an API key, a synthetic weather profile can also be generated for a selected site by selecting 'Offline synthetic'. These are purely for development purposes and any calculated system behaviour using synthetic weather data should not be treated as valid outputs.
 
@@ -146,9 +150,9 @@ coordinate grid** to remove it — result dots stay clickable. Remembered in you
 **Your own:** **Use cached weather** (selects every cached site with enough contiguous
 years) → optionally adjust **Run settings (mirrors the main tab)** → **Run N cases**.
 
-Roughly a minute and a half per location over ten years, much the same whether it runs
-four trains or one, and longer on a slower machine. Results survive a page refresh but
-not an app restart — use **Save showcase results**.
+Roughly a minute and a half per location over ten years on a current machine, or
+eight on an older one, much the same whether it runs four trains or one. Results
+survive a page refresh but not an app restart — use **Save showcase results**.
 
 > Showcase runs always compute all three information and fault variants regardless of
 > **Information mode**, so no map metric is ever blank.
